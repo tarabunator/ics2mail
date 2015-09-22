@@ -1,11 +1,22 @@
 #!/usr/bin/python
 # -*- coding: utf8 -*-
 
-from datetime import datetime
-from datetime import timedelta
+from datetime import datetime, timedelta, tzinfo
 import urllib
 import smtplib
 from email.mime.text import MIMEText
+
+icsurl='https://www.google.com/calendar/ical/t6domouc4g5krr6rfq2ojuchfg%40group.calendar.google.com/private-da82764557c2c4000c6da23019bbcfbd/basic.ics'
+
+class CEST(tzinfo):
+	def utcoffset(self, dt):
+		return timedelta(hours=+2)
+
+	def tzname(self, dt):
+		return "CEST"
+
+	def dst(self, dt):
+		return timedelta(0)
 
 class event:
 	"""calendar event class"""
@@ -39,12 +50,15 @@ class event:
 		if self.startTime.hour == 0 and self.startTime.minute == 0:
 			message['Subject'] = self.startTime.strftime("%d.%m: ") + self.summary
 		else:
+			# add local time difference
+			self.startTime += CEST().utcoffset(self.startTime)
+			self.endTime += CEST().utcoffset(self.endTime)
 			message['Subject'] = self.startTime.strftime("%H:%M") + " - " + self.endTime.strftime("%H:%M") + ": " + self.summary
 		print message.as_string()
 		smtp = smtplib.SMTP('jehu.advatech.pl')
-		#smtp.login('login', 'haslo')
+		smtp.login('login', 'haslo')
 		try:
-			smtp.sendmail("mslowinski@advatech.pl", ["mslowinski@advatech.pl"], message.as_string())
+			smtp.sendmail("mslowinski@advatech.pl", ["wyjscia-warszawa@advatech.pl"], message.as_string())
 		except SMTPException:
 			print "Error: unable to send email"
 		finally:
@@ -53,7 +67,7 @@ class event:
 
 events = []
 
-icsfile = urllib.urlopen('https://www.google.com/calendar/ical/t6domouc4g5krr6rfq2ojuchfg%40group.calendar.google.com/private-da82764557c2c4000c6da23019bbcfbd/basic.ics')
+icsfile = urllib.urlopen(icsurl)
 
 for line in icsfile.read().splitlines():
 	keyval = line.split(':')
