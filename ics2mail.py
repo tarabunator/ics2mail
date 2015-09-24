@@ -56,7 +56,7 @@ class event:
 			message['Subject'] = self.startTime.strftime("%H:%M") + " - " + self.endTime.strftime("%H:%M") + ": " + self.summary
 		print message.as_string()
 		smtp = smtplib.SMTP('jehu.advatech.pl')
-		smtp.login('login', 'haslo')
+		#smtp.login('login', 'haslo')
 		try:
 			smtp.sendmail("mslowinski@advatech.pl", ["wyjscia-warszawa@advatech.pl"], message.as_string())
 		except SMTPException:
