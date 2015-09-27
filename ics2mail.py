@@ -1,12 +1,11 @@
 #!/usr/bin/python
 # -*- coding: utf8 -*-
 
+import argparse
 from datetime import datetime, timedelta, tzinfo
 import urllib
 import smtplib
 from email.mime.text import MIMEText
-
-icsurl='https://www.google.com/calendar/ical/t6domouc4g5krr6rfq2ojuchfg%40group.calendar.google.com/private-da82764557c2c4000c6da23019bbcfbd/basic.ics'
 
 class CEST(tzinfo):
 	def utcoffset(self, dt):
@@ -29,6 +28,9 @@ class event:
 		if not time.endswith("Z"):
 			time += "T0000Z"
 		exec('self.{0} = datetime.strptime(time, "%Y%m%dT%H%M%SZ")'.format(attribute))
+		# set to local time
+		exec('self.{0} = self.{0}.replace(tzinfo=CEST())'.format(attribute))
+		exec('self.{0} += CEST().utcoffset(self.{0})'.format(attribute))
 
 	def setAttribute(self, attribute, value):
 		if value != "":
@@ -38,7 +40,7 @@ class event:
 				exec("self.{0} = value").format(attribute)
 
 	def inTimeWindow(self):
-		delta = self.startTime - datetime.now()
+		delta = self.startTime - datetime.now(CEST())
 		# not in the past and not in the future more than 20 minutes
 		if timedelta(minutes=-20) < delta < timedelta(minutes=20) and self.location != "Advatech":
 			return True
@@ -48,11 +50,9 @@ class event:
 		message['From'] = u'Mariusz Słowiński <mslowinski@advatech.pl>'
 		message['To'] = 'wyjscia-warszawa@advatech.pl'
 		if self.startTime.hour == 0 and self.startTime.minute == 0:
+			# whole day event
 			message['Subject'] = self.startTime.strftime("%d.%m: ") + self.summary
 		else:
-			# add local time difference
-			self.startTime += CEST().utcoffset(self.startTime)
-			self.endTime += CEST().utcoffset(self.endTime)
 			message['Subject'] = self.startTime.strftime("%H:%M") + " - " + self.endTime.strftime("%H:%M") + ": " + self.summary
 		print message.as_string()
 		smtp = smtplib.SMTP('jehu.advatech.pl')
@@ -64,10 +64,28 @@ class event:
 		finally:
 			smtp.quit()
 		
+	def printDetails(self):
+		print 'startTime: \t{}'.format(self.startTime)
+		print 'endTime: \t{}'.format(self.endTime)
+		print 'summary: \t{}'.format(self.summary)
+		print 'location: \t{}'.format(self.location)
+
+parser = argparse.ArgumentParser(description='Send email based on calendar file.')
+parser.add_argument('-d', '--debug', help='debug mode', action='store_true')
+ics = parser.add_mutually_exclusive_group(required=True)
+ics.add_argument('-f', '--file', type=file, metavar='file.ics', dest='icsfile')
+ics.add_argument('-u', '--url', type=str, metavar='http://file.ics', dest='icsurl')
+args = parser.parse_args()
+
+if args.debug:
+	print args
 
 events = []
 
-icsfile = urllib.urlopen(icsurl)
+if args.icsfile:
+	icsfile = args.icsfile
+else:
+	icsfile = urllib.urlopen(args.icsurl)
 
 for line in icsfile.read().splitlines():
 	keyval = line.split(':')
@@ -78,13 +96,18 @@ for line in icsfile.read().splitlines():
 	if keyval[0].startswith("DTEND"):
 		events[-1].setTime("endTime", keyval[1])
 	if keyval[0] == "SUMMARY" or keyval[0] == "LOCATION" or keyval[0] == "DESCRIPTION": 
+		# store atrribue name to...
 		attribute = keyval[0].lower()
 		events[-1].setAttribute(attribute, keyval[1].replace("\\,",","))
 	if keyval[0].startswith(" "):
+		#... append splited lines
 		events[-1].setAttribute(attribute, keyval[0].replace("\\,",","))
 
 datetime.now().strftime("%Y-%m-%d %H:%M")
 
 for event in events:
 	if event.inTimeWindow():
-		event.sendEmail()
+		if args.debug:
+			event.printDetails()
+		else:
+			event.sendEmail()
