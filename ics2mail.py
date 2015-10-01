@@ -7,6 +7,9 @@ import urllib
 import smtplib
 from email.mime.text import MIMEText
 
+# must be set staticaly because crontab can't handle long command
+icsurl='https://www.google.com/calendar/ical/t6domouc4g5krr6rfq2ojuchfg%40group.calendar.google.com/private-da82764557c2c4000c6da23019bbcfbd/basic.ics'
+
 class CEST(tzinfo):
 	def utcoffset(self, dt):
 		return timedelta(hours=+2)
@@ -49,7 +52,7 @@ class event:
 		message = MIMEText(unicode(self.location, 'utf-8'),'plain','utf-8')
 		message['From'] = u'Mariusz Słowiński <mslowinski@advatech.pl>'
 		message['To'] = 'wyjscia-warszawa@advatech.pl'
-		if self.startTime.hour == 0 and self.startTime.minute == 0:
+		if self.startTime.hour == 2 and self.startTime.minute == 2:
 			# whole day event
 			message['Subject'] = self.startTime.strftime("%d.%m: ") + self.summary
 		else:
@@ -65,16 +68,15 @@ class event:
 			smtp.quit()
 		
 	def printDetails(self):
-		print 'startTime: \t{}'.format(self.startTime)
-		print 'endTime: \t{}'.format(self.endTime)
-		print 'summary: \t{}'.format(self.summary)
-		print 'location: \t{}'.format(self.location)
+		print 'startTime: \t{0}'.format(self.startTime)
+		print 'endTime: \t{0}'.format(self.endTime)
+		print 'summary: \t{0}'.format(self.summary)
+		print 'location: \t{0}'.format(self.location)
 
 parser = argparse.ArgumentParser(description='Send email based on calendar file.')
 parser.add_argument('-d', '--debug', help='debug mode', action='store_true')
-ics = parser.add_mutually_exclusive_group(required=True)
-ics.add_argument('-f', '--file', type=file, metavar='file.ics', dest='icsfile')
-ics.add_argument('-u', '--url', type=str, metavar='http://file.ics', dest='icsurl')
+parser.add_argument('-v', '--verbose', help='verbose mode', action='store_true')
+parser.add_argument('-f', '--file', type=file, metavar='file.ics', dest='icsfile')
 args = parser.parse_args()
 
 if args.debug:
@@ -85,7 +87,7 @@ events = []
 if args.icsfile:
 	icsfile = args.icsfile
 else:
-	icsfile = urllib.urlopen(args.icsurl)
+	icsfile = urllib.urlopen(icsurl)
 
 for line in icsfile.read().splitlines():
 	keyval = line.split(':')
@@ -106,8 +108,9 @@ for line in icsfile.read().splitlines():
 datetime.now().strftime("%Y-%m-%d %H:%M")
 
 for event in events:
+	if args.debug:
+		event.printDetails()
 	if event.inTimeWindow():
-		if args.debug:
+		if args.verbose:
 			event.printDetails()
-		else:
-			event.sendEmail()
+		event.sendEmail()
