@@ -31,8 +31,9 @@ class event:
 		if not time.endswith("Z"):
 			time += "T0000Z"
 		exec('self.{0} = datetime.strptime(time, "%Y%m%dT%H%M%SZ")'.format(attribute))
-		# set to local time
+		# set to local timezone
 		exec('self.{0} = self.{0}.replace(tzinfo=CEST())'.format(attribute))
+		# set to local time
 		exec('self.{0} += CEST().utcoffset(self.{0})'.format(attribute))
 
 	def setAttribute(self, attribute, value):
@@ -42,10 +43,10 @@ class event:
 			else:
 				exec("self.{0} = value").format(attribute)
 
-	def inTimeWindow(self):
+	def inTimeWindow(self, minutes=20):
 		delta = self.startTime - datetime.now(CEST())
 		# not in the past and not in the future more than 20 minutes
-		if timedelta(minutes=-20) < delta < timedelta(minutes=20) and self.location != "Advatech":
+		if timedelta(-minutes) < delta < timedelta(minutes) and self.location != "Advatech":
 			return True
 
 	def sendEmail(self):
@@ -82,30 +83,32 @@ args = parser.parse_args()
 if args.debug:
 	print args
 
-events = []
-
 if args.icsfile:
 	icsfile = args.icsfile
 else:
 	icsfile = urllib.urlopen(icsurl)
 
+bTodayEvent = False
+today = datetime.now(CEST()).strftime("%Y%m%d")
+events = []
+
 for line in icsfile.read().splitlines():
 	keyval = line.split(':')
 	if 'BEGIN' == keyval[0] and 'VEVENT' == keyval[1]:
+		bTodayEvent = False
+	if keyval[0].startswith("DTSTART") and keyval[1][:8] == today:
+		bTodayEvent = True
 		events.append(event())
-	if keyval[0].startswith("DTSTART"):
 		events[-1].setTime("startTime", keyval[1])
-	if keyval[0].startswith("DTEND"):
+	if bTodayEvent and keyval[0].startswith("DTEND"):
 		events[-1].setTime("endTime", keyval[1])
-	if keyval[0] == "SUMMARY" or keyval[0] == "LOCATION" or keyval[0] == "DESCRIPTION": 
+	if bTodayEvent and (keyval[0] == "SUMMARY" or keyval[0] == "LOCATION" or keyval[0] == "DESCRIPTION"): 
 		# store atrribue name to...
 		attribute = keyval[0].lower()
 		events[-1].setAttribute(attribute, keyval[1].replace("\\,",","))
-	if keyval[0].startswith(" "):
+	if bTodayEvent and keyval[0].startswith(" "):
 		#... append splited lines
 		events[-1].setAttribute(attribute, keyval[0].replace("\\,",","))
-
-datetime.now().strftime("%Y-%m-%d %H:%M")
 
 for event in events:
 	if args.debug:
