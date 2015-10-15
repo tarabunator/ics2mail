@@ -44,9 +44,9 @@ class event:
 				exec("self.{0} = value").format(attribute)
 
 	def inTimeWindow(self, minutes=20):
-		delta = self.startTime - datetime.now(CEST())
+		delta = self.startTime - now
 		# not in the past and not in the future more than 20 minutes and not at Advatech
-		if timedelta(-minutes) < delta < timedelta(minutes) and self.location != "Advatech":
+		if timedelta(minutes=-minutes) < delta < timedelta(minutes=minutes) and self.location != "Advatech":
 			return True
 
 	def sendEmail(self):
@@ -58,15 +58,17 @@ class event:
 			message['Subject'] = self.startTime.strftime("%d.%m: ") + self.summary
 		else:
 			message['Subject'] = self.startTime.strftime("%H:%M") + " - " + self.endTime.strftime("%H:%M") + ": " + self.summary
-		print message.as_string()
-		smtp = smtplib.SMTP('jehu.advatech.pl')
-		#smtp.login('login', 'haslo')
-		try:
-			smtp.sendmail("mslowinski@advatech.pl", ["wyjscia-warszawa@advatech.pl"], message.as_string())
-		except SMTPException:
-			print "Error: unable to send email"
-		finally:
-			smtp.quit()
+		if args.debug:
+			print message.as_string()
+		else:
+			smtp = smtplib.SMTP('jehu.advatech.pl')
+			#smtp.login('login', 'haslo')
+			try:
+				smtp.sendmail("mslowinski@advatech.pl", ["wyjscia-warszawa@advatech.pl"], message.as_string())
+			except SMTPException:
+				print "Error: unable to send email"
+			finally:
+				smtp.quit()
 		
 	def printDetails(self):
 		print 'startTime: \t{0}'.format(self.startTime)
@@ -76,27 +78,31 @@ class event:
 
 parser = argparse.ArgumentParser(description='Send email based on calendar file.')
 parser.add_argument('-d', '--debug', help='debug mode', action='store_true')
-parser.add_argument('-v', '--verbose', help='verbose mode', action='store_true')
 parser.add_argument('-f', '--file', type=file, metavar='file.ics', dest='icsfile')
+parser.add_argument('-t', '--time', type=str, metavar='yyyy-mm-dd HH:MM', dest='now', help='use given time instead of now')
 args = parser.parse_args()
-
-if args.debug:
-	print args
 
 if args.icsfile:
 	icsfile = args.icsfile
 else:
 	icsfile = urllib.urlopen(icsurl)
 
+if args.now:
+	now = datetime.strptime(args.now, "%Y-%m-%d %H:%M")
+	# set to local timezone
+	now = now.replace(tzinfo=CEST())
+else:
+	now = datetime.now(CEST())
+
+print now
 bTodayEvent = False
-today = datetime.now(CEST()).strftime("%Y%m%d")
 events = []
 
 for line in icsfile.read().splitlines():
 	keyval = line.split(':')
 	if 'BEGIN' == keyval[0] and 'VEVENT' == keyval[1]:
 		bTodayEvent = False
-	if keyval[0].startswith("DTSTART") and keyval[1][:8] == today:
+	if keyval[0].startswith("DTSTART") and keyval[1][:8] == now.strftime("%Y%m%d"):
 		bTodayEvent = True
 		events.append(event())
 		events[-1].setTime("startTime", keyval[1])
@@ -111,9 +117,7 @@ for line in icsfile.read().splitlines():
 		events[-1].setAttribute(attribute, keyval[0].replace("\\,",","))
 
 for event in events:
-	if args.debug:
-		event.printDetails()
 	if event.inTimeWindow():
-		if args.verbose:
+		if args.debug:
 			event.printDetails()
 		event.sendEmail()
