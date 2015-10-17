@@ -44,20 +44,26 @@ class event:
 				exec("self.{0} = value").format(attribute)
 
 	def inTimeWindow(self, minutes=20):
-		delta = self.startTime - now
-		# not in the past and not in the future more than 20 minutes and not at Advatech
-		if timedelta(minutes=-minutes) < delta < timedelta(minutes=minutes) and self.location != "Advatech":
-			return True
+		# event not at Advatech
+		if self.location != "Advatech":
+			# startTime not in the past and not in the future more than 20 minutes
+			if timedelta(minutes=-minutes) < self.startTime - now < timedelta(minutes=minutes):
+				return True
+			# editTime not in the past and not in the future more than 30 minutes
+			if timedelta(minutes=-minutes-10) < self.editTime - now < timedelta(minutes=minutes+10):
+				return True
 
 	def sendEmail(self):
 		message = MIMEText(unicode(self.location, 'utf-8'),'plain','utf-8')
 		message['From'] = u'Mariusz Słowiński <mslowinski@advatech.pl>'
 		message['To'] = 'wyjscia-warszawa@advatech.pl'
+		if self.startTime < self.editTime < self.endTime:
+			prefix = "[aktualizacja] "
 		if self.startTime.hour == 2 and self.startTime.minute == 0:
 			# whole day event
 			message['Subject'] = self.startTime.strftime("%d.%m: ") + self.summary
 		else:
-			message['Subject'] = self.startTime.strftime("%H:%M") + " - " + self.endTime.strftime("%H:%M") + ": " + self.summary
+			message['Subject'] = prefix + self.startTime.strftime("%H:%M") + " - " + self.endTime.strftime("%H:%M") + ": " + self.summary
 		if args.debug:
 			print message.as_string()
 		else:
@@ -73,6 +79,7 @@ class event:
 	def printDetails(self):
 		print 'startTime: \t{0}'.format(self.startTime)
 		print 'endTime: \t{0}'.format(self.endTime)
+		print 'editTime: \t{0}'.format(self.editTime)
 		print 'summary: \t{0}'.format(self.summary)
 		print 'location: \t{0}'.format(self.location)
 
@@ -108,6 +115,8 @@ for line in icsfile.read().splitlines():
 		events[-1].setTime("startTime", keyval[1])
 	if bTodayEvent and keyval[0].startswith("DTEND"):
 		events[-1].setTime("endTime", keyval[1])
+	if bTodayEvent and keyval[0] == 'LAST-MODIFIED':
+		events[-1].setTime("editTime", keyval[1])
 	if bTodayEvent and (keyval[0] == "SUMMARY" or keyval[0] == "LOCATION" or keyval[0] == "DESCRIPTION"): 
 		# store atrribue name to...
 		attribute = keyval[0].lower()
