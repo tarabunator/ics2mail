@@ -37,7 +37,9 @@ class event:
 		exec('self.{0} += CEST().utcoffset(self.{0})'.format(attribute))
 
 	def setAttribute(self, attribute, value):
+		# for non empty value
 		if value != "":
+			# line started with " " is the continuation of previous => append
 			if value.startswith(" "):
 				exec("self.{0} += value.lstrip()").format(attribute)
 			else:
@@ -56,21 +58,22 @@ class event:
 	def sendEmail(self):
 		message = MIMEText(unicode(self.location, 'utf-8'),'plain','utf-8')
 		message['From'] = u'Mariusz Słowiński <mslowinski@advatech.pl>'
-		message['To'] = 'wyjscia-warszawa@advatech.pl'
+		message['To'] = args.email
+		prefix = ""
 		if self.startTime < self.editTime < self.endTime:
 			prefix = "[aktualizacja] "
 		if self.startTime.hour == 2 and self.startTime.minute == 0:
 			# whole day event
-			message['Subject'] = self.startTime.strftime("%d.%m: ") + self.summary
+			message['Subject'] = self.startTime.strftime("%d.%m: ") + unicode(self.summary, 'utf-8')
 		else:
-			message['Subject'] = prefix + self.startTime.strftime("%H:%M") + " - " + self.endTime.strftime("%H:%M") + ": " + self.summary
+			message['Subject'] = prefix + self.startTime.strftime("%H:%M") + " - " + self.endTime.strftime("%H:%M") + ": " + unicode(self.summary, 'utf-8')
 		if args.debug:
 			print message.as_string()
 		else:
 			smtp = smtplib.SMTP('jehu.advatech.pl')
 			#smtp.login('login', 'haslo')
 			try:
-				smtp.sendmail("mslowinski@advatech.pl", ["wyjscia-warszawa@advatech.pl"], message.as_string())
+				smtp.sendmail("mslowinski@advatech.pl", [args.email], message.as_string())
 			except SMTPException:
 				print "Error: unable to send email"
 			finally:
@@ -87,6 +90,7 @@ parser = argparse.ArgumentParser(description='Send email based on calendar file.
 parser.add_argument('-d', '--debug', help='debug mode', action='store_true')
 parser.add_argument('-f', '--file', type=file, metavar='file.ics', dest='icsfile')
 parser.add_argument('-t', '--time', type=str, metavar='yyyy-mm-dd HH:MM', dest='now', help='use given time instead of now')
+parser.add_argument('-e', '--email', type=str, metavar='', default="wyjscia-warszawa@advatech.pl", dest='email', help='use given email destination instead of %(default)s')
 args = parser.parse_args()
 
 if args.icsfile:
